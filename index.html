@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#204d40">
+  <title>Rätsel vom 05.12.</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f7f3eb;
+      color: #243f35;
+      font-family: system-ui, sans-serif;
+      padding: 32px 16px;
+    }
+    main { width: 100%; max-width: 460px; margin: 0 auto; }
+    header { text-align: center; }
+    .eyebrow { color: #76633f; font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { font-family: Georgia, serif; font-size: clamp(2rem, 8vw, 2.8rem); margin: 12px 0; font-weight: 500; }
+    .intro { line-height: 1.6; color: #536358; margin: 0 auto 20px; }
+    .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; font-size: .8rem; }
+    .legend span { display: inline-flex; gap: 6px; align-items: center; }
+    .badge { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-style: normal; }
+    .correct { background: #27634b; color: white; }
+    .present { background: #ebc75b; color: #3e3211; }
+    .absent { background: #dce1df; color: #3b4742; }
+    #board { display: grid; gap: 8px; margin: 26px auto 22px; width: fit-content; }
+    .row { display: grid; grid-template-columns: repeat(3, 62px); gap: 8px; }
+    .tile {
+      width: 62px; height: 58px; border: 1px solid #d6dbd2; border-radius: 12px;
+      display: grid; place-items: center; position: relative; font-size: 1.8rem;
+    }
+    .tile.empty { background: #f0eee7; }
+    button.tile { border: 2px solid #8d9e8d; background: #fffdf8; padding: 0; }
+    .tile .mark { position: absolute; right: 4px; bottom: 1px; font-size: .8rem; font-weight: 800; }
+    button { font-family: inherit; cursor: pointer; touch-action: manipulation; }
+    button:focus-visible { outline: 3px solid #9a4c26; outline-offset: 4px; }
+    button:disabled { cursor: default; opacity: .45; }
+    #keyboard { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .symbol {
+      min-width: 0; min-height: 58px; font-size: 1.85rem; background: #fffdf8;
+      border: 1px solid #c8d0c3; border-radius: 12px;
+    }
+    .actions { display: flex; gap: 10px; margin-top: 12px; }
+    .actions button { padding: 13px 16px; border-radius: 10px; font-size: 1rem; }
+    #check { flex: 1; background: #204d40; color: white; border: 1px solid #204d40; font-weight: 600; }
+    #remove { background: transparent; color: #243f35; border: 1px solid #bac5b8; }
+    #message { min-height: 3em; text-align: center; font-size: .9rem; line-height: 1.5; margin: 16px 0; }
+    #result { background: #e4eadf; border: 1px solid #c1cdb9; padding: 20px; border-radius: 14px; text-align: center; }
+    #result[hidden] { display: none; }
+    #result h2 { margin: 0 0 10px; font-family: Georgia, serif; }
+    #result p { white-space: pre-line; line-height: 1.6; }
+    #restart { padding: 11px 16px; border: 1px solid #728873; border-radius: 9px; background: #fffdf8; color: #243f35; font-size: 1rem; }
+    footer { text-align: center; color: #677362; font-size: .78rem; margin-top: 24px; line-height: 1.5; }
+    @media (max-width: 360px) { body { padding: 20px 12px; } .symbol { font-size: 1.6rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">05.12.2026</p>
+      <h1>Wilkommen, Knuffelchen. Bist Du bereit für deine 5. Prüfung?</h1>
+      <p class="intro">Knacke den Code.<br>Der Code besteht aus drei Symbolen.<br>Finde ihre Reihenfolge in drei Versuchen.<br>Jedes Symbol kommt höchstens einmal vor.</p>
+    </header>
+
+    <div class="legend" aria-label="Bedeutung der Rückmeldung">
+      <span><i class="badge correct">✓</i> Richtiger Platz</span>
+      <span><i class="badge present">↔</i> Anderer Platz</span>
+      <span><i class="badge absent">×</i> Nicht dabei</span>
+    </div>
+
+    <section id="board" aria-label="Deine Versuche"></section>
+    <div id="keyboard" role="group" aria-label="Symbole auswählen"></div>
+    <div class="actions">
+      <button id="remove" type="button" disabled>⌫ Löschen</button>
+      <button id="check" type="button" disabled>Prüfen</button>
+    </div>
+    <p id="message" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    <section id="result" aria-labelledby="result-title" hidden>
+      <h2 id="result-title"></h2>
+      <p id="result-text"></p>
+      <button id="restart" type="button">Noch einmal spielen</button>
+    </section>
+  </main>
+
+  <script>
+    // Erlaubte Namen: "baum", "stern", "geschenk", "glocke", "schnee".
+    // Ein Namen-triplett ist die Loesung
+    const availableSymbols = [
+      "baum", "stern", "geschenk", "glocke", "schnee"
+    ];
+
+    const SECRET = [];
+
+    while (SECRET.length < 3) {
+      const index = Math.floor(Math.random() * availableSymbols.length);
+      const symbol = availableSymbols.splice(index, 1)[0];
+      SECRET.push(symbol);
+    }
+    const WIN_MESSAGE = "Geschafft! Der gesuchte Buchstabe ist H.";
+
+    const SYMBOLS = [
+      { id: "baum", emoji: "🎄", name: "Weihnachtsbaum" },
+      { id: "stern", emoji: "⭐", name: "Stern" },
+      { id: "geschenk", emoji: "🎁", name: "Geschenk" },
+      { id: "glocke", emoji: "🔔", name: "Glocke" },
+      { id: "schnee", emoji: "❄️", name: "Schneeflocke" }
+    ];
+    const MAX_ATTEMPTS = 3;
+    const FEEDBACK = {
+      correct: { mark: "✓", text: "richtiger Platz" },
+      present: { mark: "↔", text: "anderer Platz" },
+      absent: { mark: "×", text: "nicht dabei" }
+    };
+
+    let guess = [];
+    let history = [];
+    let finished = false;
+
+    const board = document.getElementById("board");
+    const keyboard = document.getElementById("keyboard");
+    const checkButton = document.getElementById("check");
+    const removeButton = document.getElementById("remove");
+    const message = document.getElementById("message");
+    const result = document.getElementById("result");
+    const resultTitle = document.getElementById("result-title");
+    const resultText = document.getElementById("result-text");
+
+    function getSymbol(id) {
+      return SYMBOLS.find(symbol => symbol.id === id);
+    }
+
+    // Da keine doppelten Symbole erlaubt sind, genügt diese einfache Prüfung.
+    function evaluateGuess(attempt, secret) {
+      return attempt.map((id, index) =>
+        id === secret[index] ? "correct" : secret.includes(id) ? "present" : "absent"
+      );
+    }
+
+    function renderBoard() {
+      board.replaceChildren();
+      for (let rowIndex = 0; rowIndex < MAX_ATTEMPTS; rowIndex++) {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.setAttribute("role", "group");
+        row.setAttribute("aria-label", `Versuch ${rowIndex + 1}`);
+        const previous = history[rowIndex];
+        const active = !finished && rowIndex === history.length;
+        for (let column = 0; column < SECRET.length; column++) {
+          const id = previous ? previous.guess[column] : active ? guess[column] : undefined;
+          const symbol = id ? getSymbol(id) : undefined;
+          const tile = document.createElement(active ? "button" : "div");
+          tile.className = "tile";
+          tile.textContent = symbol ? symbol.emoji : "";
+          if (previous) {
+            const feedback = FEEDBACK[previous.feedback[column]];
+            tile.classList.add(previous.feedback[column]);
+            tile.setAttribute("role", "img");
+            tile.setAttribute("aria-label", `${symbol.name}: ${feedback.text}`);
+            const mark = document.createElement("span");
+            mark.className = "mark";
+            mark.setAttribute("aria-hidden", "true");
+            mark.textContent = feedback.mark;
+            tile.append(mark);
+          } else if (active) {
+            tile.type = "button";
+            tile.disabled = !symbol;
+            tile.setAttribute("aria-label", symbol ? `${symbol.name} an Stelle ${column + 1} entfernen` : `Stelle ${column + 1}, leer`);
+            tile.addEventListener("click", () => {
+              guess.splice(column, 1);
+              render();
+              const key = keyboard.querySelector(`[data-symbol="${id}"]`);
+              if (key) key.focus();
+            });
+          } else {
+            tile.classList.add("empty");
+            tile.setAttribute("aria-hidden", "true");
+          }
+          row.append(tile);
+        }
+        board.append(row);
+      }
+    }
+
+    function render() {
+      renderBoard();
+      keyboard.querySelectorAll("button").forEach(button => {
+        const selected = guess.includes(button.dataset.symbol);
+        button.disabled = finished || selected || guess.length === SECRET.length;
+      });
+      checkButton.disabled = finished || guess.length !== SECRET.length;
+      removeButton.disabled = finished || guess.length === 0;
+      if (!finished) {
+        message.textContent = `Versuch ${history.length + 1} von ${MAX_ATTEMPTS} · ${guess.length} von ${SECRET.length} Symbolen gewählt`;
+      }
+    }
+
+    function submitGuess() {
+      if (finished || guess.length !== SECRET.length) return;
+      const feedback = evaluateGuess(guess, SECRET);
+      history.push({ guess: [...guess], feedback });
+      const won = feedback.every(value => value === "correct");
+      finished = won || history.length === MAX_ATTEMPTS;
+      guess = [];
+      render();
+      const last = history[history.length - 1];
+      const report = last.guess.map((id, index) => `${getSymbol(id).name}: ${FEEDBACK[feedback[index]].text}`).join(". ");
+      message.textContent = `Versuch ${history.length}: ${report}.`;
+      if (finished) {
+        result.hidden = false;
+        resultTitle.textContent = won ? "Code geknackt!" : "Leider falsch :(";
+        resultText.textContent = won ? WIN_MESSAGE : "Alle Versuche sind aufgebraucht.";
+        document.getElementById("restart").focus();
+      } else {
+        keyboard.querySelector("button").focus();
+      }
+    }
+
+    SYMBOLS.forEach(symbol => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "symbol";
+      button.dataset.symbol = symbol.id;
+      button.textContent = symbol.emoji;
+      button.setAttribute("aria-label", `${symbol.name} auswählen`);
+      button.title = symbol.name;
+      button.addEventListener("click", () => {
+        if (finished || guess.includes(symbol.id) || guess.length === SECRET.length) return;
+        guess.push(symbol.id);
+        render();
+        const nextKey = keyboard.querySelector("button:not(:disabled)");
+        if (nextKey) nextKey.focus();
+        else checkButton.focus();
+      });
+      keyboard.append(button);
+    });
+
+    checkButton.addEventListener("click", submitGuess);
+    removeButton.addEventListener("click", () => {
+      if (finished || guess.length === 0) return;
+      guess.pop();
+      render();
+      if (removeButton.disabled) keyboard.querySelector("button").focus();
+    });
+    document.getElementById("restart").addEventListener("click", () => {
+      guess = [];
+      history = [];
+      finished = false;
+      result.hidden = true;
+      render();
+      keyboard.querySelector("button").focus();
+    });
+
+    if (SECRET.length !== 3 || new Set(SECRET).size !== 3 || SECRET.some(id => !getSymbol(id))) {
+      finished = true;
+      render();
+      message.textContent = "Bitte im Code bei SECRET genau drei verschiedene gültige Symbolnamen eintragen.";
+    } else {
+      render();
+    }
+  </script>
+</body>
+</html>
